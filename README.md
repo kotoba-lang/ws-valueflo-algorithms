@@ -102,8 +102,15 @@ the caller say what a period means.
 ## Verify
 
 ```sh
-clojure -M:test    # 64 tests, 249 assertions
+clojure -M:test          # 64 tests, 249 assertions — resolves the vocabulary from git
+clojure -M:local:test    # same, against a sibling ../ws-valueflo-vocabulary checkout
 ```
+
+The default `:test` alias deliberately resolves the vocabulary as a **git
+dependency with a pinned sha**, not as `:local/root`. The murakumo fleet ships
+one repository's tree to a node, so an alias that reaches a sibling through the
+filesystem cannot be a `:jvm-test` gate at all — the sibling is not there.
+`:local` is the override for developing against an unpushed vocabulary.
 
 ## Licence
 

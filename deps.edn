@@ -1,10 +1,26 @@
 {:paths ["src"]
 
- ;; The vocabulary is a dependency, not a copy. The action behaviour table
- ;; has exactly one home.
- :deps {kotoba-lang/ws-valueflo-vocabulary {:local/root "../ws-valueflo-vocabulary"}}
+ ;; The vocabulary is a dependency, not a copy. The action behaviour table has
+ ;; exactly one home.
+ ;;
+ ;; A GIT dep, not :local/root, and the reason is the fleet gate: murakumo ships
+ ;; ONE repository's tree to a node, so a :test alias that reaches a sibling
+ ;; through the filesystem cannot be a :jvm-test gate at all -- the sibling is
+ ;; not there (scripts/fleet-ci/tick.cljs:729). The coordinate is spelled
+ ;; io.github.<org>/<repo> with a :git/sha because that is the form
+ ;; `ship-git-deps!` recognises and carries to nodes that have no outbound
+ ;; HTTPS.
+ :deps {io.github.kotoba-lang/ws-valueflo-vocabulary
+        {:git/url "https://github.com/kotoba-lang/ws-valueflo-vocabulary.git"
+         :git/sha "3c89972916f5a09e6b7735d694c94a98e85d0406"}}
 
  :aliases
- {;; clojure -M:test
+ {;; clojure -M:test           — resolves from git; what the fleet gate runs
+  ;; clojure -M:local:test     — resolves from the sibling checkout
   :test {:extra-paths ["test"]
-         :main-opts ["-m" "valueflows.algorithms.test-runner"]}}}
+         :main-opts ["-m" "valueflows.algorithms.test-runner"]}
+
+  ;; Local development against an unpushed vocabulary. :override-deps carries no
+  ;; :git/sha, so `git-deps-of` skips it and the fleet is unaffected.
+  :local {:override-deps {io.github.kotoba-lang/ws-valueflo-vocabulary
+                          {:local/root "../ws-valueflo-vocabulary"}}}}}
