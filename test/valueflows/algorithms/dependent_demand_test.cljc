@@ -142,3 +142,21 @@
     (is (false? (:ok? r)))
     (is (= :no-commitment-could-be-exploded (:insufficient r)))
     (is (= 1 (count (:skipped (:detail r)))))))
+
+(deftest a-request-in-another-unit-than-the-output-is-refused
+  ;; `runs` is the requested quantity over the process's per-run output. That
+  ;; division used to receive a bare number, so the unit was gone before anyone
+  ;; could check it: 3 kg wanted from a process that yields 500 g scheduled
+  ;; 0.006 runs and reported success. Same defect as value-rollup's per-unit
+  ;; factor, which is why the guard now lives in flow-graph.
+  (let [r (dd/explode f/bakery {:resource :loaf :quantity (f/m 3 :kg) :due 10})]
+    (is (false? (:ok? r)) "kg asked of a process that yields g is not a ratio")
+    (is (= :unit-mismatch (:insufficient r))
+        "and it says unit-mismatch, not `output quantity missing` — the output
+         quantity is present, it is simply in another unit"))
+  (testing "the matching unit still explodes, and to the same runs as before"
+    ;; the bakery yields 20 :each per run, so 40 :each is two runs. Asserting the
+    ;; number, not just :ok?, so a guard that refused everything would fail here.
+    (let [r (dd/explode f/bakery {:resource :loaf :quantity (f/m 40 :each) :due 10})]
+      (is (:ok? r))
+      (is (= 2 (:runs (first (filter #(= :baking (:process %)) (:scheduled r)))))))))

@@ -90,3 +90,44 @@
     (is (= #{:import-flour :milling} (set (:ambiguous-makers r)))
         "two ways to get flour means two costs; the caller is told which was used")
     (is (= :import-flour (:via r)))))
+
+(deftest an-input-in-another-unit-than-the-output-is-CORRECT
+  ;; A REGRESSION TEST FOR A FIX THAT WAS WRONG. Reading `input-per-unit` it
+  ;; looks like a defect that nothing checks the units: it divides an input
+  ;; quantity by an output quantity without comparing them. A unit guard was
+  ;; added here and it broke every recipe in the fixtures, because the two sides
+  ;; measure DIFFERENT resources and the factor is meant to carry both units.
+  ;;
+  ;; 1 kg of syrup into a 750 g jar is 0.001333 kg per g. Syrup at 2 JPY per kg
+  ;; makes the jar 0.002667 JPY per g, and 750 g of jar is 2 JPY — which is the
+  ;; right answer, since the jar contains exactly 1 kg of syrup at 2 JPY/kg.
+  (let [mixed {:recipe/processes
+               [{:id :fill :duration 1
+                 :inputs [{:resource-conforms-to :syrup :action :consume
+                           :quantity (f/m 1 :kg)}]
+                 :outputs [{:resource-conforms-to :jar :action :produce
+                            :quantity (f/m 750 :g)}]}]}
+        r (vr/rollup mixed {:syrup (f/m 2 :jpy)} {:resource :jar :quantity 750})]
+    (is (:ok? r) "kg over g is a legitimate per-unit factor across resources")
+    (is (true? (:complete? r)))
+    (is (= 2.0 (double (g/qty (:value r))))
+        "750 g of jar embodies 1 kg of syrup at 2 JPY/kg")))
+
+(deftest an-input-whose-quantity-was-never-measured-says-so
+  ;; `g/factor` refuses an unmeasured quantity even though it does not compare
+  ;; units, and :refused distinguishes that from an input with no price — one is
+  ;; fixed by measuring, the other by pricing.
+  (let [no-qty {:recipe/processes
+                [{:id :fill :duration 1
+                  :inputs [{:resource-conforms-to :syrup :action :consume
+                            :quantity {:has-unit :kg}}
+                           {:resource-conforms-to :lid :action :consume
+                            :quantity (f/m 1 :each)}]
+                  :outputs [{:resource-conforms-to :jar :action :produce
+                             :quantity (f/m 1 :each)}]}]}
+        r (vr/rollup no-qty {:lid (f/m 5 :jpy)} {:resource :jar})]
+    (is (:ok? r))
+    (is (false? (:complete? r)))
+    (is (= #{:syrup} (set (:unvalued r))))
+    (is (= :not-measured (get (:refused r) :syrup))
+        "not `no price` — the quantity itself is missing")))

@@ -56,6 +56,62 @@
     [:error :unit-mismatch]
     :else [:ok (update a :has-numerical-value + (qty b))]))
 
+;; ── the two divisions, and why only one of them checks units ──────────────
+;;
+;; These algorithms divide one quantity by another in exactly two situations,
+;; and the situations have OPPOSITE unit rules. Getting them the same way round
+;; is easy: the first version of this section applied the unit check to both,
+;; and it broke every correct recipe in the fixtures.
+;;
+;;   same-unit-ratio  BOTH SIDES MEASURE THE SAME RESOURCE. How many runs of a
+;;                    process yield the quantity asked for = wanted / per-run.
+;;                    kg over `each` is meaningless here, so it is refused.
+;;
+;;   factor           THE SIDES MEASURE DIFFERENT RESOURCES. How much of an
+;;                    input goes into one unit of an output = needed / produced.
+;;                    Different units are NORMAL and correct here — 2 kg of
+;;                    flour per 20 loaves is 0.1 kg per loaf, and that factor is
+;;                    exactly what turns a value per kg of flour into a value per
+;;                    loaf. The input unit cancels against the denominator of the
+;;                    child's per-unit value. Refusing would refuse every real
+;;                    recipe, which is how the mistake above was caught.
+
+(defn same-unit-ratio
+  "a / b where both measure THE SAME resource => [:ok n] | [:error reason].
+
+   Refuses across units: one quantity of a resource divided by another quantity
+   of that same resource is a dimensionless count and nothing else. Nothing was
+   checking it, so asking for 3 kg from a process that yields 20 each scheduled
+   0.15 runs and reported success — wrong, and wearing the same face as a
+   correct answer.
+
+   Alias-aware: :kg and :kilogram are one unit, so a recipe written by one hand
+   and a request written by another still divide."
+  [a b]
+  (let [na (qty a) nb (qty b)]
+    (cond
+      (or (nil? na) (nil? nb)) [:error :not-measured]
+      (not (pos? nb)) [:error :denominator-not-positive]
+      (and (not= (unit a) (unit b))
+           (not (vfu/same? (unit a) (unit b))))
+      [:error :unit-mismatch]
+      :else [:ok (/ na nb)])))
+
+(defn factor
+  "a / b where the two measure DIFFERENT resources => [:ok n] | [:error reason].
+
+   Deliberately does NOT compare units — see the note above. DO NOT ADD A UNIT
+   CHECK HERE; the factor is meant to carry a's unit over b's unit.
+
+   It does refuse an unmeasured quantity and a non-positive denominator, because
+   those yield a number that is wrong rather than a number in another unit."
+  [a b]
+  (let [na (qty a) nb (qty b)]
+    (cond
+      (or (nil? na) (nil? nb)) [:error :not-measured]
+      (not (pos? nb)) [:error :denominator-not-positive]
+      :else [:ok (/ na nb)])))
+
 ;; ── indexing a recipe ─────────────────────────────────────────────────────
 
 (defn- flows [process key] (or (get process key) []))

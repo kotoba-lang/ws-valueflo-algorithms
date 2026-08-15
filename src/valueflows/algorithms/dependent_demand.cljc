@@ -19,17 +19,27 @@
 
 (defn- explode-1
   "One level: schedule `p` to finish at `end`, scaled to yield `want` of
-   `spec`, and return the demands its inputs place, dated at its start."
+   `spec`, and return the demands its inputs place, dated at its start.
+
+   `want` is a vf:Measure, not a number. It used to arrive as a bare number and
+   the unit was therefore unavailable at the one place that divides — asking for
+   3 kg from a process that yields 500 g scheduled 0.006 runs and said :ok?."
   [idx p-id spec want end]
   (let [p (get-in idx [:processes p-id])
         out (output-flow p spec)
-        per-run (g/qty (:quantity out))
-        runs (when (and per-run (pos? per-run)) (/ want per-run))
+        ;; asked-for over per-run, refusing across units: 3 kg wanted from a
+        ;; process that yields 500 g is not 0.006 runs
+        [tag runs-or-why] (g/same-unit-ratio want (:quantity out))
+        runs (when (= :ok tag) runs-or-why)
         duration (or (:duration p) 0)
         begin (- end duration)]
     (if (nil? runs)
-      {:error (g/insufficient :output-quantity-missing-or-zero
-                              {:process p-id :resource spec :quantity (:quantity out)})}
+      {:error (g/insufficient (if (= :unit-mismatch runs-or-why)
+                                :unit-mismatch
+                                :output-quantity-missing-or-zero)
+                              {:process p-id :resource spec
+                               :wanted want :per-run (:quantity out)
+                               :why runs-or-why})}
       {:scheduled {:process p-id :resource spec :runs runs
                    :begin begin :end end :duration duration
                    :quantity (g/scale-measure (:quantity out) runs)}
@@ -96,8 +106,11 @@
                        (if (empty? makers)
                          (update acc :independent conj resource)
                          (reduce (fn [acc' maker]
+                                   ;; the MEASURE, not (g/qty quantity): dropping
+                                   ;; to a bare number here is where the unit used
+                                   ;; to be lost, and the ratio below needs it
                                    (let [r (explode-1 idx maker resource
-                                                      (g/qty quantity) needed-by)]
+                                                      quantity needed-by)]
                                      (if (:error r)
                                        (update acc' :errors conj (:error r))
                                        (-> acc'
