@@ -1,0 +1,105 @@
+(ns valueflows.algorithms.value-equation-test
+  (:require [clojure.test :refer [deftest is testing]]
+            [valueflows.algorithms.value-equation :as ve]
+            [valueflows.algorithms.flow-graph :as g]
+            [valueflows.algorithms.fixtures :as f]))
+
+(def contributions
+  [{:action :work :provider :aki :effort-quantity (f/m 3 :hour)}
+   {:action :work :provider :bo :effort-quantity (f/m 1 :hour)}
+   {:action :use :provider :carol :effort-quantity (f/m 2 :hour)
+    :resource-inventoried-as "mixer"}])
+
+(def income (f/m 10000 :jpy))
+
+(deftest income-is-shared-in-proportion-to-contribution
+  (let [r (ve/distribute contributions income {})]
+    (is (:ok? r))
+    (is (= {:aki 3 :bo 1 :carol 2} (into {} (:basis r))))
+    (is (= 5000 (g/qty (:aki (:shares r)))))
+    (is (= 3333 (g/qty (:carol (:shares r)))))
+    (is (= 1667 (g/qty (:bo (:shares r)))) "largest remainder, so nothing is lost")
+    (is (true? (:complete? r)))))
+
+(deftest the-shares-sum-exactly-to-the-income
+  ;; Rounding each share independently loses or invents money. Over a
+  ;; three-way split of 10000 that is a yen; over a payroll it is a scandal.
+  (doseq [total [10000 9999 1 7 100003]]
+    (let [r (ve/distribute contributions (f/m total :jpy) {})]
+      (is (:ok? r))
+      (is (= total (reduce + 0 (map g/qty (vals (:shares r)))))
+          (str "must sum to " total))
+      (is (true? (:exact? r))))))
+
+(deftest weights-are-the-policy-and-the-caller-owns-them
+  (testing "counting a lent tool for nothing changes who gets paid"
+    (let [r (ve/distribute contributions income {:weights {:work 1 :use 0}})]
+      (is (:ok? r))
+      (is (= 7500 (g/qty (:aki (:shares r)))))
+      (is (= 2500 (g/qty (:bo (:shares r)))))
+      (is (nil? (:carol (:shares r))))
+      (is (= #{:use} (:zero-weighted (:unattributed r)))
+          "the excluded action is named, so the policy is visible in the result")))
+  (testing "weighting labour above equipment"
+    (let [r (ve/distribute contributions income {:weights {:work 2 :use 1}})]
+      (is (= {:aki 6 :bo 2 :carol 2} (into {} (:basis r))))
+      (is (= 6000 (g/qty (:aki (:shares r))))))))
+
+(deftest a-rounding-step-can-be-chosen
+  (let [r (ve/distribute contributions income {:round-to 100})]
+    (is (:ok? r))
+    (is (= 10000 (reduce + 0 (map g/qty (vals (:shares r))))))
+    (is (every? #(zero? (mod (g/qty %) 100)) (vals (:shares r))))))
+
+(deftest what-could-not-be-counted-is-reported-not-dropped
+  (let [messy (conj contributions
+                    {:action :work :effort-quantity (f/m 5 :hour)}      ; no agent
+                    {:action :work :provider :dee}                      ; no quantity
+                    {:action :teleport :provider :eve
+                     :resource-quantity (f/m 1 :each)})                 ; not an action
+        r (ve/distribute messy income {})]
+    (is (:ok? r) "the three good contributions still distribute")
+    (is (false? (:complete? r)))
+    (is (= 1 (:no-agent (:unattributed r))))
+    (is (= 1 (:unmeasured (:unattributed r))))
+    (is (= 1 (:unknown-action (:unattributed r))))
+    (is (= 3 (:counted r)))
+    (is (= 6 (:examined r)) "scanned is reported next to counted")
+    (is (nil? (:dee (:shares r))) "an unmeasured contribution earns no share")))
+
+;; ── refusals ──────────────────────────────────────────────────────────────
+
+(deftest no-events-is-refused-not-distributed-as-zero
+  (let [r (ve/distribute [] income {})]
+    (is (false? (:ok? r)))
+    (is (= :no-events (:insufficient r)))))
+
+(deftest nothing-scoreable-is-refused-with-a-reason-per-category
+  (let [r (ve/distribute [{:action :work :effort-quantity (f/m 1 :hour)}] income {})]
+    (is (false? (:ok? r)))
+    (is (= :no-scored-contributions (:insufficient r)))
+    (is (= 1 (:no-agent (:detail r))))
+    (is (= 1 (:examined (:detail r))))))
+
+(deftest unmeasured-income-is-refused
+  (let [r (ve/distribute contributions nil {})]
+    (is (false? (:ok? r)))
+    (is (= :income-not-measured (:insufficient r)))))
+
+(deftest hours-and-kilograms-are-not-added-into-one-score
+  (let [mixed (conj contributions
+                    {:action :produce :provider :aki :resource-quantity (f/m 50 :kg)})
+        r (ve/distribute mixed income {})]
+    (is (false? (:ok? r)))
+    (is (= :mixed-units-per-agent (:insufficient r)))))
+
+(deftest consume-is-not-a-contribution-by-default
+  ;; Using up someone else's flour is not a claim on the income. The default
+  ;; is visible in `default-weights` rather than hidden in the code.
+  (is (zero? (:consume ve/default-weights)))
+  (let [r (ve/distribute (conj contributions
+                               {:action :consume :provider :frank
+                                :resource-quantity (f/m 9 :kg)})
+                         income {})]
+    (is (:ok? r))
+    (is (nil? (:frank (:shares r))))))

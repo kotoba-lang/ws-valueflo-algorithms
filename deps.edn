@@ -1,0 +1,10 @@
+{:paths ["src"]
+
+ ;; The vocabulary is a dependency, not a copy. The action behaviour table
+ ;; has exactly one home.
+ :deps {kotoba-lang/ws-valueflo-vocabulary {:local/root "../ws-valueflo-vocabulary"}}
+
+ :aliases
+ {;; clojure -M:test
+  :test {:extra-paths ["test"]
+         :main-opts ["-m" "valueflows.algorithms.test-runner"]}}}

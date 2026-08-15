@@ -1,0 +1,48 @@
+(ns valueflows.algorithms.flow-graph-test
+  (:require [clojure.test :refer [deftest is testing]]
+            [valueflows.algorithms.flow-graph :as g]
+            [valueflows.algorithms.fixtures :as f]))
+
+(deftest indexing-finds-who-makes-and-who-uses-each-resource
+  (let [idx (g/index f/bakery)]
+    (is (= #{:milling} (get-in idx [:produced-by :flour])))
+    (is (= #{:baking} (get-in idx [:consumed-by :flour])))
+    (is (= #{:grain :flour :water :labour :loaf} (:resources idx)))
+    (is (= [:milling :baking] (:order idx)) "declaration order is preserved")))
+
+(deftest dependencies-come-from-the-flow-not-from-a-declaration
+  (let [idx (g/index f/bakery)]
+    (is (= #{:milling} (set (g/depends-on idx :baking)))
+        "baking waits on milling because it consumes what milling produces")
+    (is (empty? (g/depends-on idx :milling)))))
+
+(deftest leaves-are-what-nothing-here-produces
+  (is (= #{:grain :water :labour} (set (g/leaves (g/index f/bakery))))))
+
+(deftest topological-order-and-cycle-detection
+  (let [[tag order] (g/topo-order (g/index f/bakery))]
+    (is (= :ok tag))
+    (is (= [:milling :baking] order)))
+  (let [[tag err] (g/topo-order (g/index f/cyclic))]
+    (is (= :error tag))
+    (is (= :cycle (:code err)))
+    (is (= #{:one :two} (:members err)) "named, so the modelling defect is findable"))
+  (is (g/acyclic? (g/index f/bakery)))
+  (is (not (g/acyclic? (g/index f/cyclic)))))
+
+(deftest measures-refuse-to-add-across-units
+  (is (= [:ok (f/m 3 :kg)] (g/add-measures (f/m 1 :kg) (f/m 2 :kg))))
+  (is (= [:error :unit-mismatch] (g/add-measures (f/m 1 :kg) (f/m 2 :hour))))
+  (testing "nil is absorbed, because a first addition has nothing to add to"
+    (is (= [:ok (f/m 2 :kg)] (g/add-measures nil (f/m 2 :kg))))
+    (is (= [:ok (f/m 1 :kg)] (g/add-measures (f/m 1 :kg) nil)))))
+
+(deftest an-unmeasured-quantity-reads-as-nil-not-zero
+  (is (nil? (g/qty nil)))
+  (is (nil? (g/qty {:has-unit :kg})))
+  (is (= 0 (g/qty (f/m 0 :kg))) "a measured zero is a number"))
+
+(deftest insufficient-is-distinguishable-from-a-computed-empty-result
+  (let [i (g/insufficient :no-input {:why "..."})]
+    (is (false? (:ok? i)))
+    (is (= :no-input (:insufficient i)))))
