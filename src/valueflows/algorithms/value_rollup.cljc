@@ -17,13 +17,19 @@
   (:require [valueflows.algorithms.flow-graph :as g]))
 
 (defn- input-per-unit
-  "How much of `flow` is needed per one unit of `spec` out of `p`."
+  "How much of `flow` is needed per one unit of `spec` out of `p`.
+
+   => [:ok n] | [:error reason]. `g/factor`, NOT `g/same-unit-ratio`: the two
+   sides measure different resources, so different units are normal and the
+   factor is supposed to carry them — 2 kg of flour per 20 loaves is 0.1 kg per
+   loaf, and multiplying that by a value per kg of flour gives a value per loaf.
+
+   The reason matters to whoever reads `:unvalued`: an input with no price is
+   fixed by finding a price, an input whose quantity was never measured is fixed
+   by measuring it, and a bare set of names cannot tell those apart."
   [p spec flow]
-  (let [out (first (filter #(= spec (:resource-conforms-to %)) (:outputs p)))
-        per-run (g/qty (:quantity out))
-        needed (g/qty (:quantity flow))]
-    (when (and per-run (pos? per-run) needed)
-      (/ needed per-run))))
+  (let [out (first (filter #(= spec (:resource-conforms-to %)) (:outputs p)))]
+    (g/factor (:quantity flow) (:quantity out))))
 
 (defn unit-value
   "Value of one unit of `spec`.
@@ -53,15 +59,23 @@
               p (get-in idx [:processes p-id])
               parts (for [f (:inputs p)
                           :let [child (:resource-conforms-to f)
-                                per (input-per-unit p spec f)
+                                [tag per-or-why] (input-per-unit p spec f)
+                                per (when (= :ok tag) per-or-why)
                                 sub (unit-value idx values child
                                                 {:depth (inc depth) :max-depth max-depth
                                                  :seen (conj seen spec)})]]
-                      {:spec child :per per :sub sub})
+                      {:spec child :per per
+                       :refused (when (= :error tag) per-or-why)
+                       :sub sub})
               unvalued (reduce (fn [s {:keys [spec per sub]}]
                                  (cond-> (into s (:unvalued sub))
                                    (nil? per) (conj spec)))
                                #{} parts)
+              ;; why each refusal happened, merged up the tree
+              refused (reduce (fn [m {:keys [spec refused sub]}]
+                                (cond-> (merge m (:refused sub))
+                                  refused (assoc spec refused)))
+                              {} parts)
               summable (filter #(and (:per %) (:value (:sub %))) parts)
               total (reduce (fn [acc {:keys [per sub]}]
                               (let [scaled (g/scale-measure (:value sub) per)
@@ -69,13 +83,15 @@
                                 (if (= tag :error) (reduced :unit-mismatch) m)))
                             nil summable)]
           (if (= :unit-mismatch total)
-            {:value nil :breakdown {} :unvalued (conj unvalued spec) :from :unit-mismatch}
+            {:value nil :breakdown {} :unvalued (conj unvalued spec)
+             :refused refused :from :unit-mismatch}
             {:value total
              :breakdown (into {} (map (fn [{:keys [spec per sub]}]
                                        [spec (when (and per (:value sub))
                                                (g/scale-measure (:value sub) per))]))
                               parts)
              :unvalued unvalued
+             :refused refused
              :from :recipe
              :via p-id
              :ambiguous-makers (when (> (count makers) 1) (into (sorted-set) makers))}))))))
@@ -97,7 +113,8 @@
           u (unit-value idx values resource {})]
       (if (nil? (:value u))
         (g/insufficient :nothing-valued-on-the-path
-                        {:resource resource :unvalued (:unvalued u) :reason (:from u)})
+                        {:resource resource :unvalued (:unvalued u) :reason (:from u)
+                         :refused (not-empty (:refused u))})
         {:ok? true
          :resource resource
          :quantity quantity
@@ -105,6 +122,8 @@
          :value (g/scale-measure (:value u) quantity)
          :breakdown (into (sorted-map) (:breakdown u))
          :unvalued (into (sorted-set) (:unvalued u))
+         ;; spec -> why it could not be factored in, so :unvalued is actionable
+         :refused (not-empty (:refused u))
          :complete? (empty? (:unvalued u))
          :via (:via u)
          :ambiguous-makers (:ambiguous-makers u)}))))
