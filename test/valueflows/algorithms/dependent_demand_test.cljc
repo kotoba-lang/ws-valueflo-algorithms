@@ -80,3 +80,65 @@
     (is (:ok? r) "not an error — the answer is 'buy it'")
     (is (= #{:bicycle} (set (:independent r))))
     (is (empty? (:scheduled r)) "nothing to schedule")))
+
+;; ── exploding a plan's promises ───────────────────────────────────────────
+
+(def q3-orders
+  [{:id "so-1" :action :transfer :receiver :cafe :independent-demand-of "plan-q3"
+    :resource-conforms-to :loaf :resource-quantity (f/m 100 :each) :due 10}
+   {:id "so-2" :action :transfer :receiver :hotel :independent-demand-of "plan-q3"
+    :resource-conforms-to :loaf :resource-quantity (f/m 60 :each) :due 6}
+   {:id "so-9" :action :transfer :receiver :other :independent-demand-of "plan-q4"
+    :resource-conforms-to :loaf :resource-quantity (f/m 999 :each) :due 40}])
+
+(deftest a-plan-explodes-only-its-own-independent-demand
+  (let [r (dd/explode-plan f/bakery q3-orders {:plan "plan-q3"})]
+    (is (:ok? r))
+    (is (= 2 (:commitments r)) "so-9 belongs to plan-q4")
+    (is (= 2 (:exploded r)))
+    (is (true? (:complete? r)))
+    (testing "requirements are summed across the orders"
+      ;; 160 loaves at 1 kg of flour per 20 => 8 kg
+      (is (= 8 (g/qty (:quantity (:flour (:requirements r))))))
+      (is (= 4.0 (g/qty (:quantity (:labour (:requirements r))))) "0.5 h per 20 x 160"))
+    (testing "the earliest deadline wins for a shared input"
+      (is (= 4 (:first-needed-by (:flour (:requirements r))))
+          "so-2 is due at 6 and baking takes 2"))
+    (testing "each scheduled run says which promise it is for"
+      (is (= #{"so-1" "so-2"} (set (map :for-commitment (:scheduled r))))))))
+
+(deftest an-unexplodable-order-is-skipped-with-a-reason-not-dropped
+  (let [messy (conj q3-orders
+                    {:id "so-3" :independent-demand-of "plan-q3" :action :transfer
+                     :resource-quantity (f/m 5 :each) :due 8}          ; no resource
+                    {:id "so-4" :independent-demand-of "plan-q3" :action :transfer
+                     :resource-conforms-to :loaf :due 8}               ; no quantity
+                    {:id "so-5" :independent-demand-of "plan-q3" :action :transfer
+                     :resource-conforms-to :loaf :resource-quantity (f/m 5 :each)
+                     :due "2026-09-01T00:00:00Z"})                     ; not a period
+        r (dd/explode-plan f/bakery messy {:plan "plan-q3"})]
+    (is (:ok? r) "the two good orders still explode")
+    (is (false? (:complete? r)))
+    (is (= 2 (:exploded r)))
+    (is (= #{:no-resource-conforms-to :quantity-not-measured :due-not-a-period}
+           (set (map :why (:skipped r)))))
+    (is (= #{"so-3" "so-4" "so-5"} (set (map :commitment (:skipped r)))))))
+
+(deftest a-plan-nobody-committed-to-is-refused
+  (let [r (dd/explode-plan f/bakery q3-orders {:plan "plan-q9"})]
+    (is (false? (:ok? r)))
+    (is (= :no-independent-demand (:insufficient r)))
+    (is (= 3 (:offered (:detail r))) "it saw three commitments, none for this plan")))
+
+(deftest no-commitments-at-all-is-refused
+  (let [r (dd/explode-plan f/bakery [] {:plan "plan-q3"})]
+    (is (false? (:ok? r)))
+    (is (= :no-independent-demand (:insufficient r)))))
+
+(deftest a-plan-whose-every-order-is-broken-is-refused-not-answered-empty
+  (let [r (dd/explode-plan f/bakery
+                           [{:id "so-x" :independent-demand-of "p" :action :transfer :due 3}]
+                           {:plan "p"})]
+    (is (false? (:ok? r)))
+    (is (= :no-commitment-could-be-exploded (:insufficient r)))
+    (is (= 1 (count (:skipped (:detail r)))))))

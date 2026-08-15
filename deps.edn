@@ -12,7 +12,7 @@
  ;; HTTPS.
  :deps {io.github.kotoba-lang/ws-valueflo-vocabulary
         {:git/url "https://github.com/kotoba-lang/ws-valueflo-vocabulary.git"
-         :git/sha "3c89972916f5a09e6b7735d694c94a98e85d0406"}}
+         :git/sha "eea3c6bb3ce84a40d7e6f72985d634a5b1c342c9"}}
 
  :aliases
  {;; clojure -M:test           — resolves from git; what the fleet gate runs

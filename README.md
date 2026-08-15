@@ -13,6 +13,7 @@ by an explosion and by a trace.
 | algorithm | namespace | standing before this repo |
 |---|---|---|
 | Dependent Demand | `dependent-demand` | `kotoba-lang/plm` explodes an MBOM (MRP-II lineage) |
+| ↳ from a plan's promises | `dependent-demand/explode-plan` | needed `vf:Commitment`, which did not exist until 2026-08-15 |
 | **Critical Path** | `critical-path` | **nothing scheduled a process network** |
 | Value Rollup | `value-rollup` | `plm` rolls cost only |
 | Value Equation | `value-equation` | `cloud-itonami/credits` recognises contribution by another mechanism |
@@ -54,6 +55,15 @@ The full status of each, with evidence, is data in
 
 (cp/schedule bakery {}) ;=> critical path [:milling :baking], project-duration 3
 ```
+
+`explode-plan` takes the demand from the commitments that name a plan through
+`vf:independentDemandOf` — the Valueflows spelling of an MPS line — instead of
+from a hand-typed resource and quantity. Requirements sum across orders and the
+EARLIEST deadline wins for a shared input, so two orders due at 6 and 10 pull
+their common flour forward to when the first one needs it. An order that cannot
+be exploded is skipped with a reason and counted; a plan whose orders half
+vanished would otherwise produce a requirement list that looks complete and is
+too small.
 
 Two properties worth naming, because they are what the Valueflows framing buys
 over an MRP report:
@@ -102,7 +112,7 @@ the caller say what a period means.
 ## Verify
 
 ```sh
-clojure -M:test          # 64 tests, 249 assertions — resolves the vocabulary from git
+clojure -M:test          # 69 tests, 270 assertions — resolves the vocabulary from git
 clojure -M:local:test    # same, against a sibling ../ws-valueflo-vocabulary checkout
 ```
 

@@ -135,3 +135,87 @@
                    :needed-by first-needed-by
                    :actions actions
                    :unit-conflict (boolean (and have (not= (g/unit have) (g/unit quantity))))}))}))
+
+;; ── from a plan's promises, not from a hand-typed target ──────────────────
+;; `vf:independentDemandOf` links a Commitment to the Plan it is the demand
+;; for, which is the Valueflows spelling of an MPS line. Exploding from there
+;; rather than from a resource+quantity argument is what makes the schedule
+;; answer "what do the orders we actually took require", and it is the join
+;; that was impossible before valueflows.commitment existed.
+
+(defn- merge-requirements [a b]
+  (reduce (fn [acc [spec {:keys [quantity first-needed-by actions]}]]
+            (update acc spec
+                    (fn [r]
+                      (let [[tag m] (g/add-measures (:quantity r) quantity)]
+                        (if (= tag :error)
+                          (assoc r :unit-conflict true)
+                          {:quantity m
+                           :first-needed-by (if (:first-needed-by r)
+                                              (min (:first-needed-by r) first-needed-by)
+                                              first-needed-by)
+                           :actions (into (or (:actions r) #{}) actions)})))))
+          a b))
+
+(defn explode-plan
+  "Explode every commitment that is the independent demand of `plan`.
+
+   => {:ok? true :commitments n :scheduled [...] :requirements {...}
+       :independent #{...} :skipped [{:commitment id :why code}] :complete? bool}
+
+   A commitment that cannot be exploded is SKIPPED WITH A REASON and counted,
+   never dropped: a plan whose orders half-vanished would otherwise produce a
+   requirement list that looks complete and is too small."
+  [recipe commitments {:keys [plan max-depth] :or {max-depth 32}}]
+  (let [mine (if plan
+               (filterv #(= plan (:independent-demand-of %)) commitments)
+               (vec commitments))]
+    (cond
+      (g/empty-recipe? recipe)
+      (g/insufficient :empty-recipe {})
+
+      (empty? mine)
+      (g/insufficient :no-independent-demand
+                      {:plan plan
+                       :offered (count commitments)
+                       :why (if plan
+                              "no commitment names this plan as its independent demand"
+                              "no commitments given; not a plan that requires nothing")})
+
+      :else
+      (let [{:keys [ok bad]}
+            (reduce (fn [acc c]
+                      (let [spec (:resource-conforms-to c)
+                            q (or (:resource-quantity c) (:effort-quantity c))
+                            due (:due c)]
+                        (cond
+                          (nil? spec) (update acc :bad conj {:commitment (:id c) :why :no-resource-conforms-to})
+                          (nil? (g/qty q)) (update acc :bad conj {:commitment (:id c) :why :quantity-not-measured})
+                          (not (number? due)) (update acc :bad conj {:commitment (:id c)
+                                                                     :why :due-not-a-period
+                                                                     :due due})
+                          :else
+                          (let [e (explode recipe {:resource spec :quantity q
+                                                   :due due :max-depth max-depth})]
+                            (if (:ok? e)
+                              (update acc :ok conj [c e])
+                              (update acc :bad conj {:commitment (:id c)
+                                                     :why (:insufficient e)
+                                                     :detail (:detail e)}))))))
+                    {:ok [] :bad []} mine)]
+        (if (empty? ok)
+          (g/insufficient :no-commitment-could-be-exploded
+                          {:plan plan :offered (count mine) :skipped bad})
+          {:ok? true
+           :plan plan
+           :commitments (count mine)
+           :exploded (count ok)
+           :scheduled (into [] (mapcat (fn [[c e]]
+                                         (map #(assoc % :for-commitment (:id c))
+                                              (:scheduled e))))
+                            ok)
+           :requirements (reduce (fn [acc [_ e]] (merge-requirements acc (:requirements e)))
+                                 {} ok)
+           :independent (into (sorted-set) (mapcat (comp :independent second)) ok)
+           :skipped bad
+           :complete? (empty? bad)})))))
