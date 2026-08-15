@@ -16,7 +16,8 @@
    That is a different mechanism (mutual credit, not distribution of a pot)
    and is recorded as :adjacent in valueflows.mapping."
   (:require [valueflows.algorithms.flow-graph :as g]
-            [valueflows.vocabulary :as vocab]))
+            [valueflows.vocabulary :as vocab]
+            [valueflows.unit :as vfu]))
 
 (def default-weights
   "Every contributing action counts once per unit until a caller says
@@ -56,7 +57,9 @@
          (zero? w) (update acc :zero-weighted conj a)
          :else (-> acc
                    (update-in [:scores agent] (fnil + 0) (* n w))
-                   (update-in [:units agent] (fnil conj #{}) (g/unit m))
+                   ;; canonical, so an agent logging :hour and :hrs is not
+                   ;; reported as having mixed units
+                   (update-in [:units agent] (fnil conj #{}) (vfu/canonical (g/unit m)))
                    (update :counted inc)))))
    {:scores {} :units {} :counted 0
     :unknown-action [] :no-agent [] :unmeasured [] :unweighted-action #{} :zero-weighted #{}}

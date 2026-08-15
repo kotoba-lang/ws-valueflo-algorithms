@@ -15,7 +15,8 @@
    Direction is relative to the agent asking. The same transfer is an outflow
    for the provider and an inflow for the receiver, so `:agent` is required —
    there is no view-from-nowhere cash flow."
-  (:require [valueflows.algorithms.flow-graph :as g]))
+  (:require [valueflows.algorithms.flow-graph :as g]
+            [valueflows.unit :as vfu]))
 
 (defn- direction
   "=> :in | :out | nil (not this agent's flow)"
@@ -49,7 +50,7 @@
          (nil? n) (update acc :unmeasured conj (select-keys e [:action :has-point-in-time]))
          :else (-> acc
                    (update-in [:periods t kind d] (fnil + 0) n)
-                   (update :units conj (g/unit m))
+                   (update :units conj (vfu/canonical (g/unit m)))
                    (update :counted inc)))))
    {:periods {} :units #{} :counted 0 :undated [] :unmeasured []
     :other-agent 0 :other-resource 0}

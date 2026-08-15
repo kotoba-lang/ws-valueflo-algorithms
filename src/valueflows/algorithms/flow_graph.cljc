@@ -21,7 +21,8 @@
 
    A recipe is a collection of processes. Links are implied: a process that
    consumes what another produces depends on it."
-  (:require [clojure.set :as set]))
+  (:require [clojure.set :as set]
+            [valueflows.unit :as vfu]))
 
 ;; ── quantities ────────────────────────────────────────────────────────────
 
@@ -37,12 +38,22 @@
   (when m (update m :has-numerical-value * factor)))
 
 (defn add-measures
-  "=> [:ok m] | [:error :unit-mismatch]. Refuses across units."
+  "=> [:ok m] | [:error :unit-mismatch]. Refuses across units.
+
+   The sum carries the FIRST operand's spelling, not the canonical one:
+   1 kg + 2 kilogram is 3 kg, and 1 kilogram + 2 kg is 3 kilogram. Predictable
+   rather than tidy — canonicalising the output would change the unit a caller
+   handed in."
   [a b]
   (cond
     (nil? a) [:ok b]
     (nil? b) [:ok a]
-    (not= (unit a) (unit b)) [:error :unit-mismatch]
+    ;; Alias-aware: :kg and :kilogram are one unit (valueflows.unit), so a
+    ;; recipe written by one hand and stock written by another stop colliding.
+    ;; Exact equality still passes; genuinely different units still fail.
+    (and (not= (unit a) (unit b))
+         (not (vfu/same? (unit a) (unit b))))
+    [:error :unit-mismatch]
     :else [:ok (update a :has-numerical-value + (qty b))]))
 
 ;; ── indexing a recipe ─────────────────────────────────────────────────────

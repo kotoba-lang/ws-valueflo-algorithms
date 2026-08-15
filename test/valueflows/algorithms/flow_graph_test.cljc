@@ -46,3 +46,16 @@
   (let [i (g/insufficient :no-input {:why "..."})]
     (is (false? (:ok? i)))
     (is (= :no-input (:insufficient i)))))
+
+(deftest unit-aliases-no-longer-collide
+  (is (= [:ok (f/m 3 :kg)] (g/add-measures (f/m 1 :kg) (f/m 2 :kilogram)))
+      "one unit written two ways")
+  (is (= [:error :unit-mismatch] (g/add-measures (f/m 1 :kg) (f/m 2 :hour)))
+      "and different units still refuse")
+  (is (= [:error :unit-mismatch] (g/add-measures (f/m 1 :kg) (f/m 2 :kilo)))
+      "an unregistered spelling is not matched onto a similar one"))
+
+(deftest a-sum-carries-the-first-spelling
+  (is (= :kg (g/unit (second (g/add-measures (f/m 1 :kg) (f/m 2 :kilogram))))))
+  (is (= :kilogram (g/unit (second (g/add-measures (f/m 1 :kilogram) (f/m 2 :kg)))))
+      "documented, not tidied: the caller's spelling survives"))
