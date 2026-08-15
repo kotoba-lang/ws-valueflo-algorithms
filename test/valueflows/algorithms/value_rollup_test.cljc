@@ -131,3 +131,81 @@
     (is (= #{:syrup} (set (:unvalued r))))
     (is (= :not-measured (get (:refused r) :syrup))
         "not `no price` — the quantity itself is missing")))
+
+;; ── what a value is per ───────────────────────────────────────────────────
+
+(def ^:private cola
+  "A soft drink: ingredients measured in ml, like the real dataset that exposed
+   this. Commodity prices are per gram, and 36.3 ml of sugar is not 36.3 g."
+  {:recipe/processes
+   [{:id :fill :duration 0
+     :inputs [{:resource-conforms-to :sugar :action :consume :quantity (f/m 36.3 :ml)}
+              {:resource-conforms-to :water :action :consume :quantity (f/m 293.7 :ml)}]
+     :outputs [{:resource-conforms-to :can :action :produce :quantity (f/m 330 :ml)}]}]})
+
+(deftest a-value-per-gram-cannot-scale-a-flow-in-millilitres
+  (let [r (vr/rollup cola
+                     {:sugar {:value (f/m 0.0003066 :usd) :per (f/m 1 :g)}}
+                     {:resource :can :quantity 330})]
+    (is (false? (:ok? r))
+        "USD per gram against a flow in ml has no density to bridge it")
+    (is (= :value-denomination-mismatch (get (:refused (:detail r)) :sugar))
+        "and it says which mismatch, not just that sugar is unvalued")))
+
+(deftest the-same-value-qualified-in-the-flows-own-unit-does-scale
+  ;; the discriminating half: the refusal above is about the DENOMINATION, not
+  ;; about ml being unusable
+  (let [r (vr/rollup cola
+                     {:sugar {:value (f/m 0.0003066 :usd) :per (f/m 1 :ml)}}
+                     {:resource :can :quantity 330})]
+    (is (:ok? r))
+    (is (= #{:water} (set (:unvalued r))) "water has no value, sugar now does")
+    (is (< 0.01 (double (g/qty (:value r))) 0.012)
+        "36.3 ml x 0.0003066 USD/ml = 0.01113 USD")))
+
+(deftest a-value-per-more-than-one-unit-is-divided-down
+  (let [r (vr/rollup cola
+                     {:sugar {:value (f/m 2 :usd) :per (f/m 1000 :ml)}}
+                     {:resource :can :quantity 330})]
+    (is (:ok? r))
+    (is (= 0.0726 (double (g/qty (:value r))))
+        "2 USD per 1000 ml over 36.3 ml is 0.0726 USD, not 2 x 36.3")))
+
+(deftest an-unqualified-value-still-works-and-says-it-was-assumed
+  ;; backward compatible: a bare measure keeps the old meaning. But the
+  ;; assumption is now NAMED, because it is the thing that was silently wrong.
+  (let [r (vr/rollup cola {:sugar (f/m 0.0003066 :usd)}
+                     {:resource :can :quantity 330})]
+    (is (:ok? r))
+    (is (= #{:sugar} (set (:assumed-denomination r)))
+        "no denominator was given, so per-ml was assumed rather than verified")
+    (is (nil? (:assumed-denomination
+               (vr/rollup cola {:sugar {:value (f/m 0.0003066 :usd) :per (f/m 1 :ml)}}
+                          {:resource :can :quantity 330})))
+        "and a qualified value assumes nothing")))
+
+(deftest a-registered-alias-is-the-same-denomination-and-an-unregistered-one-is-not
+  ;; valueflows.unit's contract: registered aliases resolve, and two
+  ;; UNREGISTERED spellings match only if identical — "no fuzzy matching, ever".
+  ;; Both halves matter here, and the second half is why this test exists: an
+  ;; earlier version asserted :millilitre was an alias of :ml. It is not
+  ;; registered at all, and the rollup correctly refused.
+  (testing "a registered alias resolves"
+    (let [mass {:recipe/processes
+                [{:id :mix :duration 0
+                  :inputs [{:resource-conforms-to :sugar :action :consume
+                            :quantity (f/m 100 :g)}]
+                  :outputs [{:resource-conforms-to :bar :action :produce
+                             :quantity (f/m 100 :g)}]}]}
+          r (vr/rollup mass {:sugar {:value (f/m 1 :usd) :per (f/m 1 :gram)}}
+                       {:resource :bar :quantity 100})]
+      (is (:ok? r) ":g and :gram are one registered unit")
+      (is (= 100.0 (double (g/qty (:value r)))))))
+  (testing "an unregistered spelling is not silently accepted"
+    (let [r (vr/rollup cola
+                       {:sugar {:value (f/m 0.0003066 :usd) :per (f/m 1 :millilitre)}}
+                       {:resource :can :quantity 330})]
+      (is (false? (:ok? r))
+          ":millilitre is not in the registry, so it is not assumed to mean :ml")
+      (is (= :value-denomination-mismatch
+             (get (:refused (:detail r)) :sugar))))))
