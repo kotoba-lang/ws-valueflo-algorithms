@@ -187,9 +187,20 @@
 (deftest a-registered-alias-is-the-same-denomination-and-an-unregistered-one-is-not
   ;; valueflows.unit's contract: registered aliases resolve, and two
   ;; UNREGISTERED spellings match only if identical — "no fuzzy matching, ever".
-  ;; Both halves matter here, and the second half is why this test exists: an
-  ;; earlier version asserted :millilitre was an alias of :ml. It is not
-  ;; registered at all, and the rollup correctly refused.
+  ;;
+  ;; Both halves matter, and the second half has now been wrong twice in opposite
+  ;; directions. It first asserted :millilitre WAS an alias of :ml when nothing
+  ;; registered it, so the rollup rightly refused. Then the vocabulary registered it
+  ;; (5eb5557, "Add millilitre, because something started using it") and the same
+  ;; assertion became wrong the other way: the rollup rightly ACCEPTED it while this
+  ;; test still demanded a refusal. Between those two states, `clojure -M:test`
+  ;; (pinned vocabulary) was green and `clojure -M:local:test` (sibling checkout) was
+  ;; red, with nothing saying which verdict was authoritative.
+  ;;
+  ;; So the unregistered half no longer names a plausible alias that someone may go
+  ;; on to register. It names :mL, which differs from the registered :ml only in
+  ;; case — the sharpest form of the contract, since a human reads them as the same
+  ;; unit and the registry must not.
   (testing "a registered alias resolves"
     (let [mass {:recipe/processes
                 [{:id :mix :duration 0
@@ -201,11 +212,20 @@
                        {:resource :bar :quantity 100})]
       (is (:ok? r) ":g and :gram are one registered unit")
       (is (= 100.0 (double (g/qty (:value r)))))))
-  (testing "an unregistered spelling is not silently accepted"
+  (testing "millilitre resolves now that the vocabulary registers it"
+    ;; The other side of the same coin as the :mL case below: this one IS in the
+    ;; registry (unit_data.cljc has :ml with #{:millilitre :milliliter :millilitres
+    ;; :milliliters}), so it must resolve. Asserting both keeps the test honest
+    ;; whichever way a future vocabulary change goes.
     (let [r (vr/rollup cola
                        {:sugar {:value (f/m 0.0003066 :usd) :per (f/m 1 :millilitre)}}
                        {:resource :can :quantity 330})]
+      (is (:ok? r) ":millilitre is a registered alias of :ml")))
+  (testing "an unregistered spelling is not silently accepted"
+    (let [r (vr/rollup cola
+                       {:sugar {:value (f/m 0.0003066 :usd) :per (f/m 1 :mL)}}
+                       {:resource :can :quantity 330})]
       (is (false? (:ok? r))
-          ":millilitre is not in the registry, so it is not assumed to mean :ml")
+          ":mL is not in the registry, and differing from :ml only in case does not make it the same unit")
       (is (= :value-denomination-mismatch
              (get (:refused (:detail r)) :sugar))))))
