@@ -1,0 +1,40 @@
+#!/usr/bin/env nbb
+;; The portable suite on nbb — no build step, no JVM.
+;;
+;; Every source and every deftest-bearing test namespace in this repo is
+;; `.cljc`, and until this file existed `clojure -M:test` was the only thing
+;; that ever ran them, so a defect in the ClojureScript half of a `.cljc`
+;; was invisible here (ADR-2608190100).
+;;
+;;   nbb --classpath "src:test:$(clojure -Spath -M:test)" test/run_portable.cljs
+;;
+;; The classpath needs the git dep (ws-valueflo-vocabulary); nbb does not
+;; read deps.edn. On the fleet that is what `:ship-git-deps true` supplies.
+;;
+;; `valueflows.algorithms.test-runner` is the JVM's registry of the same
+;; seven namespaces and is `.clj`; this file is its ClojureScript twin. The
+;; two lists must stay equal — a namespace added to one and forgotten in the
+;; other still prints the same `Ran N tests` shape, which is exactly the
+;; failure that runner's own docstring warns about.
+(require '[cljs.test :as t]
+         '[valueflows.algorithms.cash-flow-test]
+         '[valueflows.algorithms.critical-path-test]
+         '[valueflows.algorithms.dependent-demand-test]
+         '[valueflows.algorithms.flow-graph-test]
+         '[valueflows.algorithms.track-trace-test]
+         '[valueflows.algorithms.value-equation-test]
+         '[valueflows.algorithms.value-rollup-test])
+
+(defmethod t/report [:cljs.test/default :end-run-tests] [m]
+  (println (str "\nnbb: " (:test m) " tests, " (:pass m) " passed, "
+                (:fail m) " failed, " (:error m) " errors"))
+  (when (pos? (+ (or (:fail m) 0) (or (:error m) 0)))
+    (set! (.-exitCode js/process) 1)))
+
+(t/run-tests 'valueflows.algorithms.cash-flow-test
+             'valueflows.algorithms.critical-path-test
+             'valueflows.algorithms.dependent-demand-test
+             'valueflows.algorithms.flow-graph-test
+             'valueflows.algorithms.track-trace-test
+             'valueflows.algorithms.value-equation-test
+             'valueflows.algorithms.value-rollup-test)
