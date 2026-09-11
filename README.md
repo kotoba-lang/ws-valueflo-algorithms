@@ -112,8 +112,8 @@ the caller say what a period means.
 ## Verify
 
 ```sh
-clojure -M:test          # 69 tests, 270 assertions — resolves the vocabulary from git
-clojure -M:local:test    # same, against a sibling ../ws-valueflo-vocabulary checkout
+kbb -M:test          # 69 tests, 270 assertions — resolves the vocabulary from git
+kbb -M:local:test    # same, against a sibling ../ws-valueflo-vocabulary checkout
 ```
 
 The default `:test` alias deliberately resolves the vocabulary as a **git

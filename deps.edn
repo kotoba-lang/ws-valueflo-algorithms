@@ -15,8 +15,8 @@
          :git/sha "5eb55572627c7246e6ab08397ac21bc7b2271640"}}
 
  :aliases
- {;; clojure -M:test           — resolves from git; what the fleet gate runs
-  ;; clojure -M:local:test     — resolves from the sibling checkout
+ {;; kbb -M:test           — resolves from git; what the fleet gate runs
+  ;; kbb -M:local:test     — resolves from the sibling checkout
   :test {:extra-paths ["test"]
          :main-opts ["-m" "valueflows.algorithms.test-runner"]}
 

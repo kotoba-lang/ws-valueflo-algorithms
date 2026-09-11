@@ -193,8 +193,8 @@
   ;; registered it, so the rollup rightly refused. Then the vocabulary registered it
   ;; (5eb5557, "Add millilitre, because something started using it") and the same
   ;; assertion became wrong the other way: the rollup rightly ACCEPTED it while this
-  ;; test still demanded a refusal. Between those two states, `clojure -M:test`
-  ;; (pinned vocabulary) was green and `clojure -M:local:test` (sibling checkout) was
+  ;; test still demanded a refusal. Between those two states, `kbb -M:test`
+  ;; (pinned vocabulary) was green and `kbb -M:local:test` (sibling checkout) was
   ;; red, with nothing saying which verdict was authoritative.
   ;;
   ;; So the unregistered half no longer names a plausible alias that someone may go
