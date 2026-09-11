@@ -1,0 +1,22 @@
+{:format :kotoba.cljk-origin/v1
+ :renamed-on "2026-09-11"
+ :decision "adr-2609111500-cljk-rename-all-clojure-source (com-junkawasaki/root 90-docs/adr; owner instruction 2026-09-11)"
+ :rule "value = the extension the file had before the rename. A path ending in .clj.cljk or .cljs.cljk kept it in the name because both platform files existed (or the plain target was taken)."
+ :origins
+ {"src/valueflows/algorithms/cash_flow.cljk" ".cljc"
+  "src/valueflows/algorithms/critical_path.cljk" ".cljc"
+  "src/valueflows/algorithms/dependent_demand.cljk" ".cljc"
+  "src/valueflows/algorithms/flow_graph.cljk" ".cljc"
+  "src/valueflows/algorithms/track_trace.cljk" ".cljc"
+  "src/valueflows/algorithms/value_equation.cljk" ".cljc"
+  "src/valueflows/algorithms/value_rollup.cljk" ".cljc"
+  "test/run_portable.cljk" ".cljs"
+  "test/valueflows/algorithms/cash_flow_test.cljk" ".cljc"
+  "test/valueflows/algorithms/critical_path_test.cljk" ".cljc"
+  "test/valueflows/algorithms/dependent_demand_test.cljk" ".cljc"
+  "test/valueflows/algorithms/fixtures.cljk" ".cljc"
+  "test/valueflows/algorithms/flow_graph_test.cljk" ".cljc"
+  "test/valueflows/algorithms/test_runner.cljk" ".clj"
+  "test/valueflows/algorithms/track_trace_test.cljk" ".cljc"
+  "test/valueflows/algorithms/value_equation_test.cljk" ".cljc"
+  "test/valueflows/algorithms/value_rollup_test.cljk" ".cljc"}}
