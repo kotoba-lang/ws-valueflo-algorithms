@@ -6,7 +6,7 @@
 ;; that ever ran them, so a defect in the ClojureScript half of a `.cljc`
 ;; was invisible here (ADR-2608190100).
 ;;
-;;   nbb --classpath "src:test:$(clojure -Spath -M:test)" test/run_portable.cljs
+;;   nbb --classpath "src:test:$(clojure -Spath -M:test)" test/run_portable.cljk
 ;;
 ;; The classpath needs the git dep (ws-valueflo-vocabulary); nbb does not
 ;; read deps.edn. On the fleet that is what `:ship-git-deps true` supplies.
