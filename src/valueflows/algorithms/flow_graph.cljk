@@ -21,7 +21,7 @@
 
    A recipe is a collection of processes. Links are implied: a process that
    consumes what another produces depends on it."
-  (:require [clojure.set :as set]
+  (:require [kotoba.lang.coll :as set]
             [valueflows.unit :as vfu]))
 
 ;; ── quantities ────────────────────────────────────────────────────────────

@@ -10,7 +10,13 @@
  ;; io.github.<org>/<repo> with a :git/sha because that is the form
  ;; `ship-git-deps!` recognises and carries to nodes that have no outbound
  ;; HTTPS.
- :deps {io.github.kotoba-lang/ws-valueflo-vocabulary
+ :deps {
+        ;; kotoba.lang.coll replaced clojure.set here (2026-09-24). An explicit
+        ;; floor: kotoba.lang.coll carries clojure.set's union/intersection/
+        ;; difference/map-invert from 0ffd5f6, and tools.deps takes the NEWEST
+        ;; sha it is shown.
+        io.github.kotoba-lang/coll {:git/sha "0ffd5f6340af50871d4759b06e02ac4fbf9a4bdf"}
+        io.github.kotoba-lang/ws-valueflo-vocabulary
         {:git/url "https://github.com/kotoba-lang/ws-valueflo-vocabulary.git"
          :git/sha "5eb55572627c7246e6ab08397ac21bc7b2271640"}}
 
