@@ -1,5 +1,5 @@
 (ns valueflows.algorithms.critical-path-test
-  (:require [clojure.test :refer [deftest is testing]]
+  (:require [kotoba.test :refer [deftest is testing]]
             [valueflows.algorithms.critical-path :as cp]
             [valueflows.algorithms.dependent-demand :as dd]
             [valueflows.algorithms.fixtures :as f]))

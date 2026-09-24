@@ -1,7 +1,7 @@
 (ns valueflows.algorithms.test-runner
   "Explicit registration with a floor. A runner that silently discovered
    nothing and exited 0 would be the emptiest possible green."
-  (:require [clojure.test :as t]
+  (:require [kotoba.test :as t]
             [valueflows.algorithms.flow-graph-test]
             [valueflows.algorithms.dependent-demand-test]
             [valueflows.algorithms.critical-path-test]
