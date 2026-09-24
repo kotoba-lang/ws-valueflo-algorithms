@@ -1,5 +1,5 @@
 (ns valueflows.algorithms.value-rollup-test
-  (:require [clojure.test :refer [deftest is testing]]
+  (:require [kotoba.test :refer [deftest is testing]]
             [valueflows.algorithms.value-rollup :as vr]
             [valueflows.algorithms.flow-graph :as g]
             [valueflows.algorithms.fixtures :as f]))

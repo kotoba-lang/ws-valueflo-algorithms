@@ -1,5 +1,5 @@
 (ns valueflows.algorithms.dependent-demand-test
-  (:require [clojure.test :refer [deftest is testing]]
+  (:require [kotoba.test :refer [deftest is testing]]
             [valueflows.algorithms.dependent-demand :as dd]
             [valueflows.algorithms.flow-graph :as g]
             [valueflows.algorithms.fixtures :as f]))

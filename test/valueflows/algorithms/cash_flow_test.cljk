@@ -1,5 +1,5 @@
 (ns valueflows.algorithms.cash-flow-test
-  (:require [clojure.test :refer [deftest is testing]]
+  (:require [kotoba.test :refer [deftest is testing]]
             [valueflows.algorithms.cash-flow :as cf]
             [valueflows.algorithms.fixtures :as f]))
 

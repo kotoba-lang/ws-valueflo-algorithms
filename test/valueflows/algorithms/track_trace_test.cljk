@@ -1,5 +1,5 @@
 (ns valueflows.algorithms.track-trace-test
-  (:require [clojure.test :refer [deftest is testing]]
+  (:require [kotoba.test :refer [deftest is testing]]
             [valueflows.algorithms.track-trace :as tt]
             [valueflows.algorithms.fixtures :as f]))
 
