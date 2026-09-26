@@ -2,7 +2,7 @@
 """Measurements for the wiki-valueflow-crawl bot.
 
 Decision-free. Runs the actual valueflow algorithms (ws-valueflo-algorithms +
-ws-valueflo-vocabulary via nbb) against real economic wage observations
+ws-valueflo-vocabulary via kbb) against real economic wage observations
 (BLS QCEW NAICS industry weekly wage), prints a SCANNED line + the analysis
 output, and appends an immutable row to the valueflow ledger. REFUSED banner
 on any failure so the bot is told it is blind, never that analysis is done.
@@ -23,7 +23,9 @@ VFA = os.environ.get(
 VOCAB = os.environ.get(
     "VALUE_FLO_VOCAB",
     os.path.expanduser("~/github/com-junkawasaki/orgs/kotoba-lang/ws-valueflo-vocabulary"))
-NBB = os.environ.get("VALUE_FLO_NBB", "/opt/homebrew/bin/nbb")
+# kbb, not nbb: the algorithms now require kotoba.lang.coll (.cljk), which nbb
+# cannot resolve ("Could not find namespace: kotoba.lang.coll", 2026-09-26).
+KBB = os.environ.get("VALUE_FLO_KBB", "/opt/homebrew/bin/kbb")
 LEDGER = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "workspace", "valueflow-ledger.jsonl")
 POC = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "workspace", "valueflow_analysis.cljs")
 
@@ -45,7 +47,7 @@ def main():
         refuse(f"missing analysis source: {POC}")
 
     proc = subprocess.run(
-        [NBB, "--classpath", f"{VFA}/src:{VOCAB}/src", POC],
+        [KBB, "--backend", "sci", "--classpath", f"{VFA}/src:{VOCAB}/src", POC],
         capture_output=True, text=True, timeout=180)
     if proc.returncode != 0:
         refuse("the analysis script exited %d:\n%s"
