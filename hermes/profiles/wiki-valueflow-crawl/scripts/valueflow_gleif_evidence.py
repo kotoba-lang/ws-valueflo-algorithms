@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Measurements for the wiki-valueflow-crawl GLEIF job.
 
-Decision-free. Runs the GLEIF valueflow analysis (valueflow_gleif.cljs) via nbb
+Decision-free. Runs the GLEIF valueflow analysis (valueflow_gleif.cljs) via kbb
 with the valueflow algorithms + vocabulary classpath, prints SCANNED + MEASURE
 lines, appends an immutable row to the valueflow-ledger. REFUSED on failure.
 
@@ -20,7 +20,9 @@ VFA = os.environ.get(
 VOCAB = os.environ.get(
     "VALUE_FLO_VOCAB",
     os.path.expanduser("~/github/com-junkawasaki/orgs/kotoba-lang/ws-valueflo-vocabulary"))
-NBB = os.environ.get("VALUE_FLO_NBB", "/opt/homebrew/bin/nbb")
+# kbb, not nbb: the algorithms now require kotoba.lang.coll (.cljk), which nbb
+# cannot resolve ("Could not find namespace: kotoba.lang.coll", 2026-09-26).
+KBB = os.environ.get("VALUE_FLO_KBB", "/opt/homebrew/bin/kbb")
 HERE = os.path.dirname(os.path.abspath(__file__))
 LEDGER = os.path.join(HERE, "..", "workspace", "valueflow-ledger.jsonl")
 SRC = os.path.join(HERE, "..", "workspace", "valueflow_gleif.cljs")
@@ -41,7 +43,7 @@ def main():
     if not os.path.isfile(SRC):
         refuse(f"missing analysis source: {SRC}")
     proc = subprocess.run(
-        [NBB, "--classpath", f"{VFA}/src:{VOCAB}/src", SRC],
+        [KBB, "--backend", "sci", "--classpath", f"{VFA}/src:{VOCAB}/src", SRC],
         capture_output=True, text=True, timeout=180)
     if proc.returncode != 0:
         refuse("the analysis script exited %d:\n%s"
